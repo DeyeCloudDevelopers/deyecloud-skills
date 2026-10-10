@@ -26,6 +26,16 @@ Choose the data center by where the devices are physically located. Data is regi
 
 The prefix (`eu1` / `us1` / `india`) must match the data center chosen at account registration. All endpoints below are relative to this base URL.
 
+When using the Deye Open MCP tools, pass the `data_center` parameter using the short key — not the full name:
+
+| Data center name | `data_center` value |
+|---|---|
+| EU | `eu` |
+| Americas | `am` |
+| India | `india` |
+
+To discover available data centers and their base URLs programmatically, call the MCP tool `list_data_centers` (no parameters required).
+
 ## Onboarding Flow
 
 1. Register a DeyeCloud account in the correct data center.
@@ -68,7 +78,7 @@ Commit a control command (example: Set Time of Use):
 
 `POST /v1.0/order/sys/tou/update`
 
-Body: `deviceSn`, `timeUseSettingItems[]` (`enableGeneration`, `enableGridCharge`, `power`, `soc`, `time`), `timeoutSeconds`. The response carries an `orderId`.
+Body: `deviceSn`, `timeUseSettingItems[]` (`enableGeneration`, `enableGridCharge`, `power`, `soc`, `time`). The response carries an `orderId`.
 
 Query the command result:
 

@@ -1,7 +1,7 @@
 ---
 name: deye-cloud-scenarios
 description: "DeyeCloud 业务场景助手 — 基于云端 Deye Open MCP（deye_open）的上层场景剧本。把官方 49 个 MCP 工具按真实业务流编排成 SOP，AI 照剧本组合调用并解读成用户能看懂的结论。Use when a user asks in natural language about station health, generation trends, battery strategy, real-time status, device diagnostics, or wants to compare stations. 触发词：电站巡检、电站健康、今天发了多少电、发电曲线、历史发电、电池策略、SOC、充放电、实时功率、设备离线、采集器故障、电站对比。"
-version: 0.3.0
+version: 1.2.0
 author: DeyeCloud Portal
 ---
 
@@ -16,9 +16,18 @@ author: DeyeCloud Portal
 用户不需要提前知道 stationId。AI 应在首次对话时自动引导：
 
 1. 若用户未提供凭据 → 引导用户去 `https://developer.deyecloud.com/app` 注册应用，拿 AppId/AppSecret
-2. 调 `get_access_token(app_id, app_secret, email, password, data_center)` 拿 token
-3. 调 `list_stations(page=1, size=10, access_token, data_center)` 列出电站，展示给用户选择
-4. 用户选择后，记住 `stationId` 与 `data_center`，后续对话自动携带
+2. 若不知道 `data_center` → 调 `list_data_centers()`（无需参数）获取可用数据中心列表
+3. 调 `get_access_token(app_id, app_secret, email, password, data_center)` 拿 token
+4. 调 `list_stations(page=1, size=10, access_token, data_center)` 列出电站，展示给用户选择
+5. 用户选择后，记住 `stationId` 与 `data_center`，后续对话自动携带
+
+**`data_center` 有效值**（短 key，不是完整名称）：
+
+| 数据中心 | `data_center` 值 |
+|---|---|
+| EU | `eu` |
+| Americas | `am` |
+| India | `india` |
 
 **用户也可以直接说电站名**，AI 调 `list_stations` 搜索匹配即可。
 

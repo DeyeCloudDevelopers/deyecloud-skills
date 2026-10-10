@@ -165,8 +165,7 @@ data = {
         {"enableGeneration": True,  "enableGridCharge": False, "power": 2000, "soc": 20, "time": "03:15"},
         {"enableGeneration": False, "enableGridCharge": True,  "power": 3000, "soc": 40, "time": "04:20"},
         {"enableGeneration": True,  "enableGridCharge": True,  "power": 4000, "soc": 50, "time": "05:25"}
-    ],
-    "timeoutSeconds": 30
+    ]
 }
 response = requests.post(url, headers=headers, json=data)
 print(response.status_code)
