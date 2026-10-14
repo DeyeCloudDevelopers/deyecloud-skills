@@ -72,13 +72,13 @@ Example: 50 inverters polled every 30 s = 100 QPM (exceeds limit, burns quota). 
 
 ## Device Command Concurrency
 
-A device executes only one command at a time.
+- A device should execute one command at a time. While the server may not explicitly reject concurrent commands, issuing rapid-fire commands without waiting for confirmation is unreliable and should be avoided.
 
-- One command per device at a time: a second command sent while the previous executes is rejected with "command in progress" and discarded.
+- One command per device at a time: a second command sent while the previous executes is best practice to be queued client-side. Testing showed the server may accept both commands without rejection, but this behavior is not guaranteed and may change.
 - Queue and retry: implement a client-side queue; confirm the previous command completed before sending the next.
 - Check command status via the command-result query endpoint (`GET /v1.0/order/{orderId}`) before issuing the next.
 
-Rapid-fire commands without waiting for confirmation → discarded commands and lost operations.
+Rapid-fire commands without waiting for confirmation → unreliable execution and potential lost operations.
 
 ## Quick Optimization Checklist
 

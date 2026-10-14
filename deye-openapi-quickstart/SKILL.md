@@ -71,6 +71,7 @@ A business member belongs to a company. The flow is three steps:
 3. `POST /v1.0/account/token?appId={AppId}` again, now adding `companyId` to the body → returns the business member access token.
 
 Cache `companyId` so step 2 can be skipped on token refresh. The same password rules (SHA256, lowercase) apply.
+Note: the MCP convenience tool `account_token` does not support `companyId`. For business member tokens, use `call_deye_api` to call `POST /v1.0/account/token` directly with `companyId` in the body.
 
 ## Control a Device — Commit & Query
 
@@ -79,12 +80,17 @@ Commit a control command (example: Set Time of Use):
 `POST /v1.0/order/sys/tou/update`
 
 Body: `deviceSn`, `timeUseSettingItems[]` (`enableGeneration`, `enableGridCharge`, `power`, `soc`, `time`). The response carries an `orderId`.
+TOU constraints (verified):
+- Exactly 6 time intervals must be passed (fewer or more → `2101006` error).
+- `time` format on write must be `HH:mm` (e.g. `"02:10"`), in 5-minute intervals.
+- `config/tou` read returns `time` in `HHmm` format (e.g. `"0105"`) — convert to `HH:mm` before writing back.
+- Supported device types: 3-Phase & 1-Phase Hybrid inverter; Micro Storage System (no voltage setting).
 
 Query the command result:
 
 `GET /v1.0/order/{orderId}`
 
-with `Authorization: bearer <accessToken>`. Check status before sending the next command to the same device — a device executes only one command at a time.
+with `Authorization: bearer <accessToken>`. Check status before sending the next command to the same device — best practice is to wait for confirmation before issuing the next command.
 
 ## Common Pitfalls
 
@@ -92,6 +98,6 @@ with `Authorization: bearer <accessToken>`. Check status before sending the next
 - Putting `appId` in the body instead of the query string.
 - Using the wrong data-center base URL for the account.
 - For business members, forgetting `companyId` on the final token call.
-- Issuing a second device command before the first completes (rejected, command discarded).
+- Issuing a second device command before the first completes is not guaranteed to be rejected by the server (test showed both commands accepted); still, always wait for the first command to complete to avoid unpredictable behavior.
 
 For the full endpoint reference, point developers to the API Documentation page (`/api`) on the developer portal.

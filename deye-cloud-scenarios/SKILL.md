@@ -89,6 +89,7 @@ author: DeyeCloud Portal
 **异常数据处理**：
 - `get_station_latest` 某字段为 null → 可能传感器故障或设备离线，不要当"0 kW 正常发电"解读，应提示"数据缺失，可能设备离线"
 - 告警列表为空但设备离线 → 提示"有离线设备但无告警记录，可能是采集器断连未上报"
+- ⚠️ 站级告警（station_alert_list）与设备级告警（device_alert_list）可能数据不一致：同一时间窗口内站级 total=0 但设备级有告警记录。如需完整告警信息，建议以 device_alert_list 为准逐设备查询
 
 ### 对应云端 MCP 工具
 
@@ -137,12 +138,13 @@ POST /v1.0/station/history
 - `1` — 5分钟级功率曲线（同日 startAt/endAt 传同一天）
 - `2` — 日汇总（每日发电量/用电量/充放电量/买卖电量）
 
-> ❌ granularity=3 始终返回 `invalid param`，不可用。
-> ⚠️ granularity=4（月度）入参日期格式必须为 `YYYYMM`（如 `"202608"`），用 `YYYY-MM-DD` 会返回 `invalid param`。但当前测试环境部分电站月度数据返回空，建议优先用 granularity=2 取日数据后 AI 自行按月汇总。
+> ⚠️ granularity=3（月汇总）入参日期格式为 `YYYY-MM`（如 `"2026-08"`），最多查 12 个月。
+> ⚠️ granularity=4（年汇总）入参日期格式为 `YYYY`（如 `"2026"`），查年汇总数据。
+> ⚠️ 如果月度数据返回空（total=0），可能是电站当月无汇总产出，建议用 granularity=2 取日数据后 AI 自行按月聚合。
 > ⚠️ 日期格式与 granularity 的对应关系（已验证）：
 > - granularity=1/2：`startAt`/`endAt` 格式为 `YYYY-MM-DD`
-> - granularity=4：`startAt`/`endAt` 格式为 `YYYYMM`
-> - granularity=3：不可用
+> - granularity=3：`startAt`/`endAt` 格式为 `YYYY-MM`（如 `"2026-08"`）
+> - granularity=4：`startAt`/`endAt` 格式为 `YYYY`（如 `"2026"`）
 
 **granularity=2 返回字段含义**（每个 stationDataItems 元素）：
 
@@ -152,12 +154,12 @@ POST /v1.0/station/history
 | `consumptionValue` | 负载用电量 | kWh |
 | `gridValue` | 电网卖电(馈电) | kWh |
 | `purchaseValue` | 电网购电 | kWh |
-| `chargeValue` | 电池充电量（仅PV充电） | kWh |
+| `chargeValue` | 电池充电量（含 PV 充电和市电充电） | kWh |
 | `dischargeValue` | 电池放电量 | kWh |
 | `fullPowerHours` | 等效满发小时数 | h |
 | `year/month/day` | 数据日期 | — |
 
-> ⚠️ **字段语义陷阱**：`chargeValue` 只统计 PV 对电池充电，纯储能电站恒为 0；`purchaseValue` 只统计电网→负载直接供电，不含电网→电池充电。完整能量流需用 granularity=1 功率数据积分。
+> ⚠️ **字段语义说明**：`chargeValue` 包含 PV 充电和市电（电网）充电的总量（实测：发电 0 时充电 1.4 kWh，充电量可大于发电量）。`purchaseValue` 只统计电网→负载直接供电，不含电网→电池充电。完整能量流需用 granularity=1 功率数据积分。
 
 ### AI 解读策略
 
@@ -165,7 +167,7 @@ POST /v1.0/station/history
 - **发电用途分布**：自用 = 发电 - 卖电；上网 = 卖电字段
 - **用电来源分布**：光伏自用 + 电池放电 + 电网买电
 - **异常天标记**：发电量环比骤降 > 30% → 标红"可能是遮挡/故障/天气"，结合场景 1 的告警交叉验证
-- **月度汇总**：AI 自行按月聚合日数据，给出月度发电量/用电量
+- **月度汇总**：可用 granularity=3 查月汇总数据（格式 YYYY-MM）；若返回空，用 granularity=2 取日数据后 AI 自行按月聚合
 
 **报告结构**：趋势描述 + 日/月汇总表 + 用途分布 + 异常天 + 建议
 
@@ -189,23 +191,23 @@ POST /v1.0/station/history
 | 0 | `get_access_token` | — | token | — |
 | 1 | `list_stations` | — | stationId | — |
 | 2 | `list_station_devices` | station_id, size=100 | 设备清单 | 找出 PCS/逆变器 SN（设备类型 PCS 或 INVERTER） |
-| 3 | `config_tou` | body={deviceSn} | TOU 配置：时段表 + 充放电策略 + 启用状态 | 设备需在线；离线返回 `2104006 device offline`；部分在线设备返回 `2101022 business error`（设备不支持 TOU 或未配置） |
+| 3 | `config_tou` | body={deviceSn} | TOU 配置：时段表 + 充放电策略 + 启用状态 | 设备需在线；离线返回 `2104006 device offline`；对 BATTERY 等不支持 TOU 的设备返回 `2106001 config point not supported` |
 | 4 | `config_battery` | body={deviceSn} | 电池配置：SOC 上下限、容量、电池类型 | 同上 |
 | 5 | `config_system` | body={deviceSn} | 系统模式（工作模式、能量模式等） | 同上 |
 | 6 | `device_history` | deviceSn, startAt/endAt(YYYY-MM-DD), granularity=2 | 逐日充放电量 | 分析充放电模式 |
 | 7（可选） | `device_history` | deviceSn, startAt/endAt(YYYY-MM-DD), granularity=1, measurePoints=[...] | 分钟级功率曲线 | 分析充放电时段 vs 电价峰谷 |
-| 8（可选） | `strategy_dynamic_control_read` | body={deviceSn} | 读取动态控制策略 | 部分设备返回 `2101040 device not found`（设备不支持动态控制） |
+| 8（可选） | `strategy_dynamic_control_read` | body={deviceSn} | 读取动态控制策略 | 部分设备可能不支持动态控制（需后端确认错误码） |
 
 ### ⚠️ 接口限制（已逐设备验证）
 
 **config 系列（tou/battery/system）**：
 - 需设备在线，离线返回 `2104006 device offline`
-- 部分在线设备返回 `2101022 business error`（设备型号不支持该配置项）
+- 部分在线设备返回 `2106001 config point not supported`（设备型号不支持该配置项；旧版文档称 2101022 已过时）
 
 **device/measurePoints**：
 - COLLECTOR / BATTERY 类型返回 `2104005 device not supported`（设备类型本身不支持）
 - PCS 类型正常返回测点列表（如 2345678901 返回 226 个测点）
-- INVERTER 类型可能返回 `2101040 device not found`（见下方已知问题）
+- INVERTER 类型正常返回测点列表（旧版文档称返回 2101040 已过时，见下方验证结果）
 
 **device/latest**：
 - 仅有缓存的设备返回数据，无缓存的返回空 `deviceDataList`（不报错）
@@ -213,32 +215,26 @@ POST /v1.0/station/history
 
 **device/alertList / device/history**：
 - PCS 类型正常工作
-- 部分 INVERTER / BATTERY 返回 `2101040 device not found`（见下方已知问题）
+- INVERTER 设备正常工作（旧版文档称返回 2101040 已过时，见下方验证结果）
 
 **strategy/dynamicControl/read**：
 - 需用 `strategy/dynamicControl/readResult` 轮询结果
-- 部分设备返回 `2101040 device not found`
+- 部分设备可能返回 `2101040`（2026-10-12 测试未复现，见下方验证结果）
 
-### 🐛 已知问题：station/device 与 device/* 数据不一致
+### 📋 设备接口验证结果（2026-10-12 实测）
 
-`station/device` 返回的 SN 在 `device/measurePoints`、`device/alertList`、`device/history` 中可能返回 `2101040 device not found`。
+以下为真实 API 调用验证的设备行为，取代旧版"已知问题"表格：
 
-**测试环境 8 台设备验证结果**：
+| 设备类型 | device/latest | device/measurePoints | device/alertList | device/history | 说明 |
+|---------|--------------|--------------------|-----------------|---------------|------|
+| PCS | ✅ 有缓存数据 | ✅ 返回测点 | ✅ 返回告警 | ✅ 返回历史 | 功能完整 |
+| INVERTER | ✅ 可返回数据（含 91 测点） | ✅ 返回测点（如 139 个） | ✅ 返回告警 | ✅ 返回历史 | 功能正常，旧版文档称返回 2101040 已过时 |
+| COLLECTOR | 空 deviceDataList | 2104005 device not supported | ✅ 返回告警 | 空 | measurePoints 不支持此设备类型 |
+| BATTERY | 空 deviceDataList | 2104005 device not supported | ✅ 返回告警 | 空 | measurePoints 不支持此设备类型；对 BATTERY 调 config_tou 返回 2106001 config point not supported |
 
-| SN | 类型 | station/device | latest | measurePoints | alertList | history |
-|----|------|---------------|--------|--------------|-----------|---------|
-| 2345678901 | PCS | ✅ | ✅ | ✅ 226点 | ✅ | ✅ 3条 |
-| 1234567801 | COLLECTOR | ✅ | 空 | 2104005 不支持 | ✅ | 空 |
-| 2345678901M01 | BATTERY | ✅ | 空 | 2104005 不支持 | ✅ | 空 |
-| D24B13018310 | COLLECTOR | ✅ | 空 | 2104005 不支持 | 2101022 | 空 |
-| 2402032159 | INVERTER | ✅ | 空 | 2101040 | 2101040 | 2101040 |
-| 2301316666 | INVERTER | ✅ | 空 | 2101040 | 2101040 | 2101040 |
-| 2212228298 | INVERTER | ✅ 在线 | 空 | 2101040 | 2101040 | 2101040 |
-| 2212228298BM01 | BATTERY | ✅ | 空 | 2101040 | 2101040 | 2101040 |
-
-> **根因推测**：`station/device` 接口和 `device/*` 系列接口使用不同的设备索引/注册表，部分设备在 station 维度可见但 device 维度查不到。需后端排查 device 接口的设备注册逻辑。
+> ⚠️ 旧版文档中记载的 `2101040 device not found`（station/device 有但 device/* 查不到）在 2026-10-12 测试中**全面未复现**。INVERTER 设备的 measurePoints、alertList、history、latest 均正常返回。旧版已知问题表格已废弃。
 >
-> **AI 处理策略**：遇到 `2101040` 时不要当错误处理，应提示"该设备在 OpenAPI 中暂不可查询明细数据"，继续用 `station/device` 返回的 `connectStatus` 判断在线/离线状态。
+> **AI 处理策略**：遇到 `2104005` 时提示"该设备类型不支持 measurePoints 查询"；遇到 `2106001` 时提示"该设备不支持此配置项"；遇到空 `deviceDataList` 时提示"设备无缓存实时数据"。继续用 `station/device` 返回的 `connectStatus` 判断在线/离线状态。
 
 ### AI 解读策略
 
@@ -271,7 +267,7 @@ POST /v1.0/station/history
 | 0 | `get_access_token` | — | token | — |
 | 1 | `list_stations` | page=1, size=10 | stationId | 列出电站让用户选 |
 | 2 | `get_station_latest` | station_id | 电站实时功率流 + 电池 SOC | 功率字段为 null → 设备可能离线 |
-| 3（可选） | `device_latest` | device_list=[sn1, sn2] | 多设备实时数据（批量≤10） | 需先 `list_station_devices` 拿 SN |
+| 3（可选） | `device_latest` | body={"deviceList":["sn1","sn2"]} | 多设备实时数据（批量≤10） | 需先 `list_station_devices` 拿 SN；入参字段名是 `deviceList`（camelCase），不是 `device_list` |
 | 4（可选） | `station_alert_list` | body={stationId, startTimestamp, endTimestamp} | 实时告警 | 时间范围用近 24 小时 |
 
 ### AI 解读策略
@@ -303,7 +299,7 @@ POST /v1.0/station/history
 | 0 | `get_access_token` | — | token | — |
 | 1 | `list_station_devices` | station_id, size=100 | 全设备清单 + connectStatus | 统计在线率，定位离线设备 SN |
 | 2 | `station_alert_list` | body={stationId, startTimestamp, endTimestamp} | 电站级告警 | 找出故障/警告设备 |
-| 3 | `device_latest` | device_list=[故障SN] | 故障设备实时数据 | 看异常值（功率 0、温度过高、SOC 异常） |
+| 3 | `device_latest` | body={"deviceList":["故障SN"]} | 故障设备实时数据 | 看异常值（功率 0、温度过高、SOC 异常）；入参字段名是 `deviceList`（camelCase） |
 | 4 | `device_alert_list` | body={deviceSn, startTimestamp, endTimestamp}, language=zh | 单设备告警下钻 | 看历史告警 + 恢复时间 |
 | 5（可选） | `device_measure_points` | body={deviceSn} | 测点定义 | 不确定设备有哪些数据时先查测点；COLLECTOR 类型不支持 |
 | 6（可选） | `device_history` | body={deviceSn, startAt, endAt, granularity=2} | 逐日趋势 | 看故障前后数据变化 |
@@ -392,10 +388,12 @@ POST /v1.0/device/history
 ```
 POST /v1.0/station/history
 Body: { stationId: int, startAt: string, endAt: string, granularity: int }
-granularity: 1=5分钟功率, 2=日汇总, 3=不可用, 4=月汇总
-  - granularity=1/2: startAt/endAt 格式 YYYY-MM-DD
-  - granularity=4: startAt/endAt 格式 YYYYMM (如 "202608")
-  - granularity=3: 始终返回 invalid param
+granularity: 1=帧级功率(5分钟), 2=日汇总, 3=月汇总, 4=年汇总
+  - granularity=1: startAt 格式 YYYY-MM-DD（仅 startAt，查单日）
+  - granularity=2: startAt/endAt 格式 YYYY-MM-DD（最多 31 天）
+  ⚠️ granularity=2 时间范围超过 31 天报 2101012
+  - granularity=3: startAt/endAt 格式 YYYY-MM（如 "2026-08"，最多 12 个月）
+  - granularity=4: startAt/endAt 格式 YYYY（如 "2026"）
 ```
 
 ### station/history/power
@@ -413,8 +411,9 @@ POST /v1.0/device/history
 Body: { deviceSn: string, startAt: "YYYY-MM-DD", endAt: "YYYY-MM-DD", granularity: int, measurePoints: [string] }
 granularity: 1=分钟级(需传measurePoints), 2=日汇总(不传measurePoints)
 granularity=2 返回字段: ChargingCapacity/DischargingCapacity/Production/GridFeed-in/Consumption/ElectricityPurchasing
+⚠️ granularity=2 时传 measurePoints 会报 2101006 "should be null"；measurePoints 仅在 granularity=1 时传
 ⚠️ ElectricityPurchasing 不含电网→电池充电电量
-⚠️ ChargingCapacity 只统计PV充电，纯储能电站恒为0
+⚠️ ChargingCapacity 包含 PV 充电和市电充电的总量，不限于 PV 充电
 ```
 
 ### station/device
@@ -424,6 +423,7 @@ POST /v1.0/station/device
 Body: { stationIds: [int], page: int, size: int }
 返回: deviceListItems[], 含 deviceSn/deviceType/connectStatus(0=离线,1=在线)/collectionTime
 ⚠️ 入参是 stationIds 数组，不是单个 stationId
+⚠️ MCP 有两个工具：便捷工具 `list_station_devices`（入参 station_id 单值，内部转为数组）；标准封装 `station_device`（入参 body，需直接传 {"stationIds": [...]}）
 ```
 
 ### station/listWithDevice
@@ -441,6 +441,7 @@ Body: { page: int, size: int, deviceType: string(可选) }
 POST /v1.0/station/alertList
 Body: { stationId: int, startTimestamp: int(10位秒), endTimestamp: int(10位秒), page: int, size: int }
 ⚠️ 必须传 startTimestamp 和 endTimestamp
+⚠️ startTimestamp 与 endTimestamp 差值不得超过 180 天
 ```
 
 ### config/tou | config/battery | config/system
@@ -449,7 +450,7 @@ Body: { stationId: int, startTimestamp: int(10位秒), endTimestamp: int(10位�
 POST /v1.0/config/{tou|battery|system}
 Body: { deviceSn: string }
 ⚠️ 设备需在线，离线返回 2104006 device offline
-⚠️ 部分在线设备返回 2101022 business error（设备型号不支持该配置项）
+⚠️ 部分在线设备返回 2106001 config point not supported（设备型号不支持该配置项）
 ```
 
 ### device/measurePoints
@@ -458,8 +459,21 @@ Body: { deviceSn: string }
 POST /v1.0/device/measurePoints
 Body: { deviceSn: string, deviceType: string(可选) }
 ⚠️ COLLECTOR/BATTERY 类型返回 2104005 device not supported
-⚠️ INVERTER 类型可能返回 2101040 device not found（station/device 有但 device/* 查不到，见已知问题）
+⚠️ INVERTER 类型正常返回测点列表（旧版文档称 2101040 已过时，见下方验证结果）
 ⚠️ PCS 类型正常返回 measurePoints 数组
+```
+### device/latest
+
+```
+POST /v1.0/device/latest
+Body: { deviceList: [string] }
+返回: deviceDataList[], 含 deviceSn + itemList(key/value/unit)
+⚠️ 入参字段名是 deviceList（camelCase），不是 device_list（snake_case）
+⚠️ 批量查询每次最多 10 台设备
+⚠️ MCP 有两个工具：
+  - get_device_latest（便捷工具）：参数名 device_list，内部自动转换为 {"deviceList": [...]}
+  - device_latest（标准封装）：参数名 body，需直接传 {"deviceList": [...]}
+  若用标准封装 device_latest 但传 body={"device_list": [...]}，服务端报 2101008 invalid param type（HTTP 500）
 ```
 
 ### strategy/dynamicControl/read
