@@ -91,3 +91,15 @@ Rapid-fire commands without waiting for confirmation → `2104004` rejection and
 - Use exponential backoff on 429/5xx (no tight-loop retries).
 - Apply TTL caching per data type.
 - Wait for command confirmation before sending the next command to the same device.
+
+## 🔄 版本自检
+
+本 skill 的 frontmatter 中有 `version` 字段（如 `v261015`）。**首次会话时**，AI 应主动检查版本是否过期：
+
+1. 读取本 SKILL.md 的 `version` 字段
+2. 用 `fetch` 或 `curl` 对 `https://developer.deyecloud.com/skills/deye-open-mcp-skills-{version}.zip` 发 HEAD 请求
+3. 若返回 `content-type: text/html`（而非 `application/zip`），说明此版本已下线，提示用户：
+   > ⚠️ Your skill version ({version}) is outdated. Visit https://developer.deyecloud.com/skills to download the latest version.
+4. 若返回 `content-type: application/zip`，版本仍有效，无需提示
+
+此检查**仅首次会话执行一次**，后续对话不再重复。
