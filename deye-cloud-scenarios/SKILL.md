@@ -496,12 +496,10 @@ Body: { deviceSn: string }
 
 ## 🔄 版本自检
 
-本 skill 的 frontmatter 中有 `version` 字段（如 `v261015`）。**首次会话时**，AI 应主动检查版本是否过期：
+本 skill 的 frontmatter 中有 `version` 字段（如 `v261015`）。AI 在每次会话开始时应检查版本是否为最新：
 
 1. 读取本 SKILL.md 的 `version` 字段
-2. 用 `fetch` 或 `curl` 对 `https://developer.deyecloud.com/skills/deye-open-mcp-skills-{version}.zip` 发 HEAD 请求
-3. 若返回 `content-type: text/html`（而非 `application/zip`），说明此版本已下线，提示用户：
-   > ⚠️ Your skill version ({version}) is outdated. Visit https://developer.deyecloud.com/skills to download the latest version.
-4. 若返回 `content-type: application/zip`，版本仍有效，无需提示
-
-此检查**仅首次会话执行一次**，后续对话不再重复。
+2. 用 `curl` 请求 `https://developer.deyecloud.com/skills/latest-version.txt` 获取最新版本号
+3. 若本地版本 ≠ 最新版本，提示用户：
+   > ⚠️ Your skill version ({本地版本}) is outdated. Latest is {最新版本}. Visit https://developer.deyecloud.com/skills to update.
+4. 若版本一致，无需提示，直接开始正常对话
