@@ -92,12 +92,19 @@ Rapid-fire commands without waiting for confirmation → `2104004` rejection and
 - Apply TTL caching per data type.
 - Wait for command confirmation before sending the next command to the same device.
 
-## 🔄 版本自检
+## 🔄 版本自检与自动更新
 
-本 skill 的 frontmatter 中有 `version` 字段（如 `v261015`）。AI 在每次会话开始时应检查版本是否为最新：
+本 skill 的 frontmatter 中有 `version` 字段（如 `v261015`）。AI 在每次会话开始时应检查版本是否为最新，若过时则**自动更新**：
 
-1. 读取本 SKILL.md 的 `version` 字段
-2. 用 `curl` 请求 `https://developer.deyecloud.com/skills/latest-version.txt` 获取最新版本号
-3. 若本地版本 ≠ 最新版本，提示用户：
-   > ⚠️ Your skill version ({本地版本}) is outdated. Latest is {最新版本}. Visit https://developer.deyecloud.com/skills to update.
-4. 若版本一致，无需提示，直接开始正常对话
+1. 读取本 SKILL.md 的 `version` 字段，记为 `local_version`
+2. 执行 `curl -s https://developer.deyecloud.com/skills/latest-version.txt`，记为 `latest_version`
+3. 若 `local_version` = `latest_version`，版本一致，无需操作，直接开始正常对话
+4. 若 `local_version` ≠ `latest_version`，执行自动更新：
+   a. 告知用户：`⚠️ DeyeCloud skill is outdated ({local_version} → {latest_version}), updating...`
+   b. 下载最新 zip：`curl -L -o /tmp/deye-skills-latest.zip https://developer.deyecloud.com/skills/deye-open-mcp-skills.zip`
+   c. 解压到临时目录：`unzip -o /tmp/deye-skills-latest.zip -d /tmp/deye-skills-update`
+   d. 用更新后的文件覆盖本地 skill 目录（即本 SKILL.md 所在的目录及其同级目录）
+   e. 告知用户：`✅ Updated to {latest_version}. Please restart this session for changes to take effect.`
+   f. 停止当前会话，等待用户重新开始
+
+**注意**：AI 必须在更新完成后停止并要求用户重启会话，因为旧版 skill 指令已在本会话上下文中加载，需重启才能加载新版。
