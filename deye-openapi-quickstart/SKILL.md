@@ -91,6 +91,7 @@ Query the command result:
 `GET /v1.0/order/{orderId}`
 
 with `Authorization: bearer <accessToken>`. Check status before sending the next command to the same device — best practice is to wait for confirmation before issuing the next command.
+If a second command is sent while the previous one is still executing on the same device, the server rejects it with `2104004 command concurrent running`. Always wait for the first command to complete before issuing the next.
 
 ## Common Pitfalls
 
@@ -98,6 +99,7 @@ with `Authorization: bearer <accessToken>`. Check status before sending the next
 - Putting `appId` in the body instead of the query string.
 - Using the wrong data-center base URL for the account.
 - For business members, forgetting `companyId` on the final token call.
-- Issuing a second device command before the first completes is not guaranteed to be rejected by the server (test showed both commands accepted); still, always wait for the first command to complete to avoid unpredictable behavior.
+- Issuing a second device command before the first completes → rejected with `2104004 command concurrent running`. (Note: if commands are spaced far enough apart, both succeed because the lock window has closed — this is not a contradiction.)
+- Control commands require per-device write permission. Not all devices under a station are writable — some return `2101027` (permission denied). If a device rejects control, check with the station owner whether write access was granted for that device.
 
 For the full endpoint reference, point developers to the API Documentation page (`/api`) on the developer portal.

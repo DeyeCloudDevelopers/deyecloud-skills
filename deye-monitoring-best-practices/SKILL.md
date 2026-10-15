@@ -72,13 +72,14 @@ Example: 50 inverters polled every 30 s = 100 QPM (exceeds limit, burns quota). 
 
 ## Device Command Concurrency
 
-- A device should execute one command at a time. While the server may not explicitly reject concurrent commands, issuing rapid-fire commands without waiting for confirmation is unreliable and should be avoided.
+- A device executes one command at a time. If a second command is sent while the previous is still running, the server rejects it with `2104004 command concurrent running`.
 
-- One command per device at a time: a second command sent while the previous executes is best practice to be queued client-side. Testing showed the server may accept both commands without rejection, but this behavior is not guaranteed and may change.
+- One command per device at a time: a second command sent while the previous executes is rejected with `2104004 command concurrent running`. (If commands are spaced far enough apart, both succeed because the lock window has closed.)
+- Control permission is per-device, not per-station. Not all devices under a station are writable — some return `2101027` (permission denied). Check device-level write access before issuing control commands.
 - Queue and retry: implement a client-side queue; confirm the previous command completed before sending the next.
 - Check command status via the command-result query endpoint (`GET /v1.0/order/{orderId}`) before issuing the next.
 
-Rapid-fire commands without waiting for confirmation → unreliable execution and potential lost operations.
+Rapid-fire commands without waiting for confirmation → `2104004` rejection and lost operations.
 
 ## Quick Optimization Checklist
 
