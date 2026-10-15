@@ -1,6 +1,8 @@
 ---
 name: deye-monitoring-best-practices
 description: Advise developers on optimizing DeyeCloud OpenAPI call patterns — polling frequency, matching hardware refresh rates, selective endpoints, eliminating redundant calls, staying within QPM rate limits, client-side caching, and device command concurrency. Use when a developer asks how to reduce API calls, avoid HTTP 429 rate limiting, optimize polling intervals, avoid wasting quota, follow DeyeCloud API best practices, prepare for the upcoming usage-metering / quota / rate-limit adjustment, or audit an existing DeyeCloud OpenAPI integration for efficiency.
+version: v261015
+author: DeyeCloud Portal
 ---
 
 # DeyeCloud OpenAPI — Monitoring & Call Optimization Best Practices

@@ -1,7 +1,7 @@
 ---
 name: deye-cloud-scenarios
 description: "DeyeCloud 业务场景助手 — 基于云端 Deye Open MCP（deye_open）的上层场景剧本。把官方 49 个 MCP 工具按真实业务流编排成 SOP，AI 照剧本组合调用并解读成用户能看懂的结论。Use when a user asks in natural language about station health, generation trends, battery strategy, real-time status, device diagnostics, or wants to compare stations. 触发词：电站巡检、电站健康、今天发了多少电、发电曲线、历史发电、电池策略、SOC、充放电、实时功率、设备离线、采集器故障、电站对比。"
-version: 1.2.0
+version: v261015
 author: DeyeCloud Portal
 ---
 
