@@ -1,7 +1,7 @@
 ---
 name: deye-cloud-scenarios
 description: "DeyeCloud 业务场景助手 — 基于云端 Deye Open MCP（deye_open）的上层场景剧本。把官方 49 个 MCP 工具按真实业务流编排成 SOP，AI 照剧本组合调用并解读成用户能看懂的结论。Use when a user asks in natural language about station health, generation trends, battery strategy, real-time status, device diagnostics, or wants to compare stations. 触发词：电站巡检、电站健康、今天发了多少电、发电曲线、历史发电、电池策略、SOC、充放电、实时功率、设备离线、采集器故障、电站对比。"
-version: v261015
+version: v261016
 author: DeyeCloud Portal
 ---
 
@@ -207,7 +207,7 @@ POST /v1.0/station/history
 **device/measurePoints**：
 - COLLECTOR / BATTERY 类型返回 `2104005 device not supported`（设备类型本身不支持）
 - PCS 类型正常返回测点列表（如 2345678901 返回 226 个测点）
-- INVERTER 类型正常返回测点列表（旧版文档称返回 2101040 已过时，见下方验证结果）
+- INVERTER 类型正常返回测点列表（measurePoints/history/latest 正常；alertList 偶发 2101040，见下方验证结果）
 
 **device/latest**：
 - 仅有缓存的设备返回数据，无缓存的返回空 `deviceDataList`（不报错）
@@ -215,11 +215,11 @@ POST /v1.0/station/history
 
 **device/alertList / device/history**：
 - PCS 类型正常工作
-- INVERTER 设备正常工作（旧版文档称返回 2101040 已过时，见下方验证结果）
+- INVERTER 设备大部分功能正常（measurePoints/history/latest 正常；alertList 偶发 2101040，见下方验证结果）
 
 **strategy/dynamicControl/read**：
 - 需用 `strategy/dynamicControl/readResult` 轮询结果
-- 部分设备可能返回 `2101040`（2026-10-12 测试未复现，见下方验证结果）
+- 部分设备可能返回 `2101040`（strategy read 偶发，见下方验证结果）
 
 ### 📋 设备接口验证结果（2026-10-12 实测）
 
@@ -228,13 +228,13 @@ POST /v1.0/station/history
 | 设备类型 | device/latest | device/measurePoints | device/alertList | device/history | 说明 |
 |---------|--------------|--------------------|-----------------|---------------|------|
 | PCS | ✅ 有缓存数据 | ✅ 返回测点 | ✅ 返回告警 | ✅ 返回历史 | 功能完整 |
-| INVERTER | ✅ 可返回数据（含 91 测点） | ✅ 返回测点（如 139 个） | ✅ 返回告警 | ✅ 返回历史 | 功能正常，旧版文档称返回 2101040 已过时 |
+| INVERTER | ✅ 可返回数据（含 91 测点） | ✅ 返回测点（如 139 个） | ⚠️ 偶发 2101040（按设备） | ✅ 返回历史 | 个别设备 alertList 返回 2101040，同站其他设备正常 |
 | COLLECTOR | 空 deviceDataList | 2104005 device not supported | ✅ 返回告警 | 空 | measurePoints 不支持此设备类型 |
 | BATTERY | 空 deviceDataList | 2104005 device not supported | ✅ 返回告警 | 空 | measurePoints 不支持此设备类型；对 BATTERY 调 config_tou 返回 2106001 config point not supported |
 
-> ⚠️ 旧版文档中记载的 `2101040 device not found`（station/device 有但 device/* 查不到）在 2026-10-12 测试中**全面未复现**。INVERTER 设备的 measurePoints、alertList、history、latest 均正常返回。旧版已知问题表格已废弃。
+> ⚠️ `2101040 device not found`（station/device 有但 device/alertList 查不到）为**按设备偶发**问题：同一电站中部分设备正常返回告警，个别设备返回 2101040（2026-10-15 R6 测试复现，requestId `74cc9e7b`，设备 `2302248678`）。其他 device/* 接口（latest、measurePoints、history）对该设备正常。可能原因：设备告警索引未同步或设备类型与告警服务映射缺失。
 >
-> **AI 处理策略**：遇到 `2104005` 时提示"该设备类型不支持 measurePoints 查询"；遇到 `2106001` 时提示"该设备不支持此配置项"；遇到空 `deviceDataList` 时提示"设备无缓存实时数据"。继续用 `station/device` 返回的 `connectStatus` 判断在线/离线状态。
+> **AI 处理策略**：遇到 `2101040` 时提示"该设备暂无告警数据记录（服务端索引未同步）"，不要将其判断为设备不存在或离线——以 `station/device` 返回的 `connectStatus` 为准判断在线状态。遇到 `2104005` 时提示"该设备类型不支持 measurePoints 查询"；遇到 `2106001` 时提示"该设备不支持此配置项"；遇到空 `deviceDataList` 时提示"设备无缓存实时数据"。
 
 ### AI 解读策略
 
@@ -461,7 +461,7 @@ Body: { deviceSn: string }
 POST /v1.0/device/measurePoints
 Body: { deviceSn: string, deviceType: string(可选) }
 ⚠️ COLLECTOR/BATTERY 类型返回 2104005 device not supported
-⚠️ INVERTER 类型正常返回测点列表（旧版文档称 2101040 已过时，见下方验证结果）
+⚠️ INVERTER 类型 measurePoints 正常返回测点列表（alertList 偶发 2101040，见下方验证结果）
 ⚠️ PCS 类型正常返回 measurePoints 数组
 ```
 ### device/latest
