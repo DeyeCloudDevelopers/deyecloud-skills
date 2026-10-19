@@ -1,7 +1,7 @@
 ---
 name: deye-openapi-quickstart
 description: Onboard developers to the DeyeCloud OpenAPI and guide them from account registration to a first successful API call. Use when a developer asks how to start integrating with DeyeCloud OpenAPI, how to obtain an access token (personal user or business member), which data center / base URL to choose, how to create a DeyeCloud application (AppId/AppSecret), or how to send and query a device control command. Also use for questions about the DeyeCloud developer portal quick-start flow, the /v1.0/account/token endpoint, /v1.0/account/info, or /v1.0/order control endpoints.
-version: v261015
+version: v261019
 author: DeyeCloud Portal
 ---
 
