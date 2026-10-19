@@ -5,6 +5,10 @@
 </p>
 
 <p align="center">
+  <img src="docs/hero.png" width="100%" alt="DeyeCloud AI Skills — ask in plain English, get structured results" />
+</p>
+
+<p align="center">
   <a href="https://modelcontextprotocol.io"><img alt="MCP" src="https://img.shields.io/badge/MCP-Streamable%20HTTP-blue"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-green"></a>
   <img alt="Skills" src="https://img.shields.io/badge/skills-3-orange">
